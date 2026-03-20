@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, ShieldCheck, Database, RefreshCw, Home, Store, X, FileText, MessageCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const App = () => {
   const [rooms, setRooms] = useState([]);
