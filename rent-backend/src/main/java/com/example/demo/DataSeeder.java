@@ -18,11 +18,11 @@ public class DataSeeder implements CommandLineRunner {
         if (repository.count() == 0) {
             
             // 1. Ground Floor - Shutter (Vacant by default)
-            saveRoom("Shutter", "GROUND", "COMMERCIAL", 15000, false, null, null);
+            saveRoom("Shutter", "GROUND", "COMMERCIAL", 5000, false, null, null);
             
             // 2. First Floor - Rooms (Vacant by default)
-            saveRoom("101", "FIRST", "RESIDENTIAL", 12000, false, null, null);
-            saveRoom("102", "FIRST", "RESIDENTIAL", 12000, false, null, null);
+            saveRoom("101", "FIRST", "RESIDENTIAL", 5000, false, null, null);
+            saveRoom("102", "FIRST", "RESIDENTIAL", 5000, false, null, null);
             
             // 3. Second Floor - Saiteja (Occupied)
             saveRoom("201", "SECOND", "RESIDENTIAL", 10000, true, "Saiteja", "917989919631");
