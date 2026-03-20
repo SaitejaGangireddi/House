@@ -31,7 +31,7 @@ public class SmsService {
 
     // Inside SmsService.java
     // @Scheduled(cron = "0 0 9 5 * ?")
-    @Scheduled(cron = "0 51 16 * * *")
+    @Scheduled(cron = "0 18 17 * * *")
     public void sendAutomaticReminders() {
         List<Room> rooms = repository.findAll();
         System.out.println("🔍 Checking " + rooms.size() + " rooms for reminders...");
