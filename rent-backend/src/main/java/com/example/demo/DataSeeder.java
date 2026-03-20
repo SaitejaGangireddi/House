@@ -13,35 +13,33 @@ public class DataSeeder implements CommandLineRunner {
         this.repository = repository;
     }
 
-    @Override
-    public void run(String... args) throws Exception {
-        // We remove the "if count == 0" check so it updates every time the app starts
-        
-        // 1. Ground Floor
-        saveOrUpdateRoom("Shutter", "GROUND", "COMMERCIAL", 5000, false, null, null);
-        
-        // 2. First Floor
-        saveOrUpdateRoom("101", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-        saveOrUpdateRoom("102", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-        
-        // 3. Second Floor
-        saveOrUpdateRoom("201", "SECOND", "RESIDENTIAL", 12000, true, "Saiteja", "917989919631");
-        
-        System.out.println("✅ LIG-941 Database sync completed with updated rentals.");
-    }
+   @Override
+public void run(String... args) throws Exception {
+    // Remove the "if repository.count() == 0" check so this runs every time you deploy
+    
+    // Updated values
+    saveOrUpdateRoom("Shutter", "GROUND", "COMMERCIAL", 5000, false, null, null);
+    saveOrUpdateRoom("101", "FIRST", "RESIDENTIAL", 5000, false, null, null);
+    saveOrUpdateRoom("102", "FIRST", "RESIDENTIAL", 5000, false, null, null);
+    saveOrUpdateRoom("201", "SECOND", "RESIDENTIAL", 12000, true, "Saiteja", "917989919631");
+    
+    System.out.println("✅ Database updated with new rental values.");
+}
 
-    private void saveOrUpdateRoom(String num, String floor, String type, int rent, boolean occupied, String name, String phone) {
-        // Check if room already exists by Unit Number
-        Room room = repository.findByUnitNumber(num).orElse(new Room());
-        
-        room.setUnitNumber(num);
-        room.setFloor(floor);
-        room.setUnitType(type);
-        room.setMonthlyRent(rent); // Update to the new rent
-        room.setIsOccupied(occupied);
-        room.setTenantName(name);
-        room.setTenantPhone(phone);
-        
-        repository.save(room);
-    }
+private void saveOrUpdateRoom(String num, String floor, String type, int rent, boolean occupied, String name, String phone) {
+    // 1. Try to find the room by its Unit Number
+    Room room = repository.findByUnitNumber(num).orElse(new Room());
+    
+    // 2. Set all the values (this will overwrite the old rent with the new one)
+    room.setUnitNumber(num);
+    room.setFloor(floor);
+    room.setUnitType(type);
+    room.setMonthlyRent(rent); 
+    room.setIsOccupied(occupied);
+    room.setTenantName(name);
+    room.setTenantPhone(phone);
+    
+    // 3. Save it - Spring JPA is smart enough to UPDATE if it exists, or INSERT if it's new
+    repository.save(room);
+}
 }
