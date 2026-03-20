@@ -18,8 +18,10 @@ public void run(String... args) throws Exception {
     // Remove the "if repository.count() == 0" check so this runs every time you deploy
     
     // Updated values
-    saveOrUpdateRoom("Shutter", "GROUND", "COMMERCIAL", 5000, false, null, null);
-    saveOrUpdateRoom("101", "FIRST", "RESIDENTIAL", 5000, false, null, null);
+    saveOrUpdateRoom("Shutter", "GROUND", "RESIDENTIAL", 6000, true, "Lakshmana rao", "919866693940");
+     saveOrUpdateRoom("001", "FIRST", "RESIDENTIAL", 5000, false, null, null);
+      saveOrUpdateRoom("002", "FIRST", "RESIDENTIAL", 5000, false, null, null);
+    saveOrUpdateRoom("101", "FIRST", "RESIDENTIAL", 5000,  true, "Geetha", "919550623773");
     saveOrUpdateRoom("102", "FIRST", "RESIDENTIAL", 5000, false, null, null);
     saveOrUpdateRoom("201", "SECOND", "RESIDENTIAL", 12000, true, "Saiteja", "917989919631");
     
