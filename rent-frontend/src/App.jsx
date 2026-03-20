@@ -48,7 +48,7 @@ const App = () => {
       >
         <div>
           <h1 className="text-8xl font-black italic tracking-tighter bg-gradient-to-b from-[#FFBF00] to-[#5c440b] bg-clip-text text-transparent drop-shadow-2xl">LIG-941</h1>
-          <p className="text-[10px] tracking-[0.5em] text-gray-500 uppercase font-bold mt-2">Premium Estate Ledger</p>
+          <p className="text-[10px] tracking-[0.5em] text-gray-500 uppercase font-bold mt-2">Rentals</p>
         </div>
         <motion.button
           whileHover={{ scale: 1.1, rotate: 180 }}
@@ -69,7 +69,7 @@ const App = () => {
           className="bg-gradient-to-br from-[#0c0c0c] to-black p-10 rounded-[2rem] border border-white/5 shadow-2xl"
         >
           <Database size={24} className="text-[#FFBF00] mb-4 opacity-50" />
-          <p className="text-6xl font-extralight italic">{rooms.length.toString().padStart(2, '0')} <span className="text-sm not-italic text-gray-600 uppercase">Total Units</span></p>
+          <p className="text-6xl font-extralight italic">{rooms.length.toString().padStart(2, '0')} <span className="text-sm not-italic text-gray-600 uppercase">Flats</span></p>
         </motion.div>
 
         <motion.div
