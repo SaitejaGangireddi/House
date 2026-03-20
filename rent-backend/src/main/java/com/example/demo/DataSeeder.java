@@ -2,6 +2,7 @@ package com.example.demo;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import java.util.Optional;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
@@ -14,32 +15,32 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Only seeds if the Aiven database is empty
-        if (repository.count() == 0) {
-            
-            // 1. Ground Floor - Shutter (Vacant by default)
-            saveRoom("Shutter", "GROUND", "COMMERCIAL", 5000, false, null, null);
-            
-            // 2. First Floor - Rooms (Vacant by default)
-            saveRoom("101", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-            saveRoom("102", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-            
-            // 3. Second Floor - Saiteja (Occupied)
-            saveRoom("201", "SECOND", "RESIDENTIAL", 10000, true, "Saiteja", "917989919631");
-            
-            System.out.println("✅ LIG-941 Database seeded successfully.");
-        }
+        // We remove the "if count == 0" check so it updates every time the app starts
+        
+        // 1. Ground Floor
+        saveOrUpdateRoom("Shutter", "GROUND", "COMMERCIAL", 5000, false, null, null);
+        
+        // 2. First Floor
+        saveOrUpdateRoom("101", "FIRST", "RESIDENTIAL", 5000, false, null, null);
+        saveOrUpdateRoom("102", "FIRST", "RESIDENTIAL", 5000, false, null, null);
+        
+        // 3. Second Floor
+        saveOrUpdateRoom("201", "SECOND", "RESIDENTIAL", 12000, true, "Saiteja", "917989919631");
+        
+        System.out.println("✅ LIG-941 Database sync completed with updated rentals.");
     }
 
-    private void saveRoom(String num, String floor, String type, int rent, boolean occupied, String name, String phone) {
-        Room room = new Room();
+    private void saveOrUpdateRoom(String num, String floor, String type, int rent, boolean occupied, String name, String phone) {
+        // Check if room already exists by Unit Number
+        Room room = repository.findByUnitNumber(num).orElse(new Room());
+        
         room.setUnitNumber(num);
         room.setFloor(floor);
         room.setUnitType(type);
-        room.setMonthlyRent(rent);
-        room.setIsOccupied(occupied); // The important field
-        room.setTenantName(name);     // New field
-        room.setTenantPhone(phone);   // New field
+        room.setMonthlyRent(rent); // Update to the new rent
+        room.setIsOccupied(occupied);
+        room.setTenantName(name);
+        room.setTenantPhone(phone);
         
         repository.save(room);
     }
