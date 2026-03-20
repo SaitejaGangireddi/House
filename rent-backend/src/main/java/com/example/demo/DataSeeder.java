@@ -23,7 +23,7 @@ public void run(String... args) throws Exception {
       saveOrUpdateRoom("002", "FIRST", "RESIDENTIAL", 5000, false, null, null);
     saveOrUpdateRoom("101", "FIRST", "RESIDENTIAL", 5000,  true, "Geetha", "919550623773");
     saveOrUpdateRoom("102", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-    saveOrUpdateRoom("201", "SECOND", "RESIDENTIAL", 12000, true, "Saiteja", "917989919631");
+    saveOrUpdateRoom("201", "FIRST", "RESIDENTIAL", 5000, false, null, null);
     
     System.out.println("✅ Database updated with new rental values.");
 }
