@@ -1,6 +1,44 @@
 @import "tailwindcss";
 
-/* If you have custom animations, they go here */
 @theme {
+  /* Custom NoMadNest Gold */
+  --color-brand-gold: #FFBF00;
+  --color-brand-dark: #050505;
+
+  /* Custom Animations for your HUD */
   --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* Custom Base Styles */
+@layer base {
+  body {
+    @apply bg-[#050505] text-white selection:bg-[#FFBF00] selection:text-black;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom Utilities for the SaaS Dashboard */
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 20px rgba(255, 191, 0, 0.3);
+  }
+  
+  .glass {
+    @apply bg-white/5 border border-white/10 backdrop-blur-xl;
+  }
+
+  .led-red {
+    @apply bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)];
+  }
+
+  .led-green {
+    @apply bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)];
+  }
 }
