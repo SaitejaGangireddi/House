@@ -7,7 +7,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/units")
-@CrossOrigin(origins = {"https://house-six-tau.vercel.app", "http://localhost:5175"})// Allows your Codespace frontend to communicate with Render backend
+@CrossOrigin(origins = {"https://house-six-tau.vercel.app", "http://localhost:5175", "https://sturdy-spoon-4pwqxj59r593qqg9-5175.app.github.dev/"})// Allows your Codespace frontend to communicate with Render backend
 public class RoomController {
 
     private final RoomRepository roomRepository;
