@@ -11,6 +11,13 @@ public class Room {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+
+    private String password;
+
+    // Getters and Setters (Make sure to add getPassword and setPassword)
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+
     @Column(name = "unit_number", nullable = false)
     private String unitNumber;
 

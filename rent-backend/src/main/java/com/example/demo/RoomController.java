@@ -7,7 +7,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/units")
-@CrossOrigin(origins = {"https://house-six-tau.vercel.app", "http://localhost:5175", "https://sturdy-spoon-4pwqxj59r593qqg9-5175.app.github.dev/"})// Allows your Codespace frontend to communicate with Render backend
+@CrossOrigin(origins = "*")// Allows your Codespace frontend to communicate with Render backend
 public class RoomController {
 
     private final RoomRepository roomRepository;
@@ -27,6 +27,17 @@ public class RoomController {
     public List<Room> getHouseRooms(@PathVariable String email, @PathVariable String houseId) {
         return roomRepository.findByOwnerEmailAndHouseId(email, houseId);
     }
+
+
+    /**
+ * NEW: Fetch ALL units for a specific owner across all houses.
+ * Required for the Tenant Login/Access Gateway.
+ */
+@GetMapping("/owner/{email}")
+public List<Room> getAllUnitsByOwner(@PathVariable String email) {
+    // Make sure findByOwnerEmail is defined in your RoomRepository interface
+    return roomRepository.findByOwnerEmail(email);
+}
 
     /**
      * 2. POST: Create a NEW Unit

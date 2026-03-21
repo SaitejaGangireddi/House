@@ -1,0 +1,17 @@
+package com.example.demo; // Matching your screenshot
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOrigins("*")  // Absolute wildcard
+                .allowedMethods("*")  // All methods (GET, POST, PUT, DELETE, OPTIONS)
+                .allowedHeaders("*"); // All headers
+                // Notice I removed allowCredentials to prevent strict-origin conflicts
+    }
+}
