@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, ShieldCheck, Database, RefreshCw, Home, Store, X, FileText, MessageCircle, Settings, Save, Plus, Trash2, Building2, LogOut, ChevronDown, ArrowLeft, Globe, ChevronRight, LayoutDashboard, Target, Zap, Fingerprint, Lock, Key } from 'lucide-react';
+import { Activity, ShieldCheck, Database, RefreshCw, Home, Store, X, FileText, MessageCircle, Settings, Save, Plus, Trash2, Building2, LogOut, ChevronDown, ArrowLeft, Globe, ChevronRight, LayoutDashboard, Target, Zap, Fingerprint, Lock, Key, BarChart3, TrendingUp, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { auth, loginWithGoogle, logout } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -11,11 +11,11 @@ const App = () => {
   const [currentView, setCurrentView] = useState('landing'); 
   const [isAdmin, setIsAdmin] = useState(false); 
   
-  // --- SECURITY LOGIC: DEFINE MASTER ADMIN ---
+  // --- SECURITY LOGIC ---
   const MASTER_ADMIN_EMAIL = "saitejagangireddi@gmail.com";
   const isSuperAdmin = user?.email === MASTER_ADMIN_EMAIL;
 
-  // --- STATE MANAGEMENT ---
+  // --- PERSISTENCE: LOAD HOUSES ---
   const [houses, setHouses] = useState(() => {
     const saved = localStorage.getItem('nomadnest_houses');
     return saved ? JSON.parse(saved) : [];
@@ -27,17 +27,23 @@ const App = () => {
   const [isAddingHouse, setIsAddingHouse] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [editData, setEditData] = useState(null);
-  const [newHouse, setNewHouse] = useState({ id: '', name: '' });
+  
+  // --- FORM STATES (Now includes password for custom entry) ---
+  const [newHouse, setNewHouse] = useState({ id: '', name: '', password: '' });
   const [newRoom, setNewRoom] = useState({ unitNumber: '', floor: '', monthlyRent: 0, tenantPhone: '', tenantName: '' });
   
+  // --- CLIENT AUTH STATES ---
   const [clientAccessCode, setClientAccessCode] = useState('');
+  const [clientPassword, setClientPassword] = useState('');
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "https://sturdy-spoon-4pwqxj59r593qqg9-8080.app.github.dev";
 
+  // --- PERSISTENCE: SAVE HOUSES ---
   useEffect(() => { 
     localStorage.setItem('nomadnest_houses', JSON.stringify(houses)); 
   }, [houses]);
 
+  // --- AUTH LISTENER & ROUTING ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -54,6 +60,7 @@ const App = () => {
     return () => unsubscribe();
   }, [currentView]);
 
+  // --- DATA ISOLATION & FETCHING ---
   useEffect(() => {
     if (user && activeHouse) {
       setRooms([]); 
@@ -76,15 +83,42 @@ const App = () => {
       });
   };
 
-  // --- BUSINESS LOGIC HANDLERS ---
+  // --- BUSINESS HANDLERS ---
+  
   const handleAddNewHouse = () => {
-    if (!newHouse.id || !newHouse.name) return alert("Info missing");
-    const updated = [...houses, newHouse];
+    const formattedId = newHouse.id.toLowerCase().replace(/\s+/g, '-');
+    if (!formattedId || !newHouse.name) return alert("Property ID and Name are required.");
+    
+    // Prevent Duplicate Property IDs
+    if (houses.some(h => h.id === formattedId)) {
+        return alert("ERROR: This Property ID already exists. Please choose a unique ID.");
+    }
+
+    // Use typed password, OR auto-generate one if left blank
+    const finalPassword = newHouse.password?.trim() ? newHouse.password.trim() : Math.random().toString(36).slice(-6).toUpperCase();
+
+    const houseWithAuth = {
+        id: formattedId,
+        name: newHouse.name,
+        password: finalPassword
+    };
+
+    const updated = [...houses, houseWithAuth];
     setHouses(updated);
-    setActiveHouse(newHouse);
+    setActiveHouse(houseWithAuth);
     setCurrentView('details');
     setIsAddingHouse(false);
-    setNewHouse({ id: '', name: '' });
+    setNewHouse({ id: '', name: '', password: '' });
+  };
+
+  // Retroactively generate a password for old properties that show NO-PASS
+  const handleGeneratePassword = (e, houseId) => {
+    e.stopPropagation(); 
+    const generatedPassword = Math.random().toString(36).slice(-6).toUpperCase();
+    const updatedHouses = houses.map(h => 
+      h.id === houseId ? { ...h, password: generatedPassword } : h
+    );
+    setHouses(updatedHouses);
   };
 
   const handleDeleteHouse = async (e, houseId) => {
@@ -142,12 +176,22 @@ const App = () => {
   };
 
   const handleClientAccess = () => {
-    if (!clientAccessCode.trim()) return alert("Enter a Property ID");
-    const foundHouse = houses.find(h => h.id === clientAccessCode.toLowerCase().trim());
-    setActiveHouse({ 
-        id: clientAccessCode.toLowerCase().trim(), 
-        name: foundHouse ? foundHouse.name : "Managed Property" 
-    });
+    const formattedId = clientAccessCode.toLowerCase().trim();
+    if (!formattedId) return alert("Enter a Property ID");
+
+    const foundHouse = houses.find(h => h.id === formattedId);
+    
+    // Validate if Property Exists
+    if (!foundHouse) {
+        return alert("ACCESS DENIED: Property ID does not exist in the system.");
+    }
+
+    // Validate Password Match
+    if (foundHouse.password !== clientPassword.trim()) {
+        return alert("ACCESS DENIED: Incorrect Password.");
+    }
+
+    setActiveHouse(foundHouse);
     setCurrentView('details');
   };
 
@@ -155,6 +199,8 @@ const App = () => {
     logout();
     setCurrentView('landing');
     setActiveHouse(null);
+    setClientAccessCode('');
+    setClientPassword('');
   };
 
   const totalRevenue = rooms.reduce((acc, r) => acc + (r.isOccupied ? (parseInt(r.monthlyRent) || 0) : 0), 0);
@@ -163,10 +209,9 @@ const App = () => {
 
   const LandingPage = () => (
     <div className="bg-[#050505] min-h-screen text-white">
-      {/* Premium Hero Section */}
       <section className="relative h-[90vh] flex flex-col items-center justify-center border-b border-white/5 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=2000" className="w-full h-full object-cover opacity-40 scale-105" alt="" />
+          <img src="https://images.pexels.com/photos/323780/pexels-photo-323780.jpeg?auto=compress&cs=tinysrgb&w=2000" className="w-full h-full object-cover opacity-40 scale-105" alt="" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-[#050505]"></div>
         </div>
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1 }} className="z-10 text-center mt-10 px-6">
@@ -185,7 +230,6 @@ const App = () => {
         </motion.div>
       </section>
 
-      {/* Feature Split Section (BUG FIXED) */}
       <section className="py-24 px-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div>
@@ -202,7 +246,6 @@ const App = () => {
             </div>
           </div>
           
-          {/* FIXED: Removed alt text and added bg-[#111] fallbacks so broken images don't ruin the layout */}
           <div className="grid grid-cols-2 gap-6 h-[500px]">
             <div className="rounded-[2.5rem] overflow-hidden shadow-2xl mt-12 bg-[#111] border border-white/5 relative">
               <img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700 absolute inset-0" alt="" />
@@ -211,16 +254,13 @@ const App = () => {
               <img src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700 absolute inset-0" alt="" />
             </div>
           </div>
-
         </div>
       </section>
     </div>
   );
 
-  // --- LUXURY SPLIT-SCREEN CLIENT GATEWAY ---
   const ClientGateway = () => (
     <div className="min-h-screen bg-[#050505] flex text-white relative">
-      {/* Left Image Section */}
       <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
         <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=1200" className="absolute inset-0 w-full h-full object-cover" alt="" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent"></div>
@@ -230,7 +270,6 @@ const App = () => {
         </div>
       </div>
       
-      {/* Right Login Section */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 relative">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#FFBF00]/5 rounded-full blur-[100px] pointer-events-none"></div>
         
@@ -243,18 +282,28 @@ const App = () => {
             <ShieldCheck size={12}/> Authenticated: {user?.email}
           </p>
           
-          <div className="space-y-5">
+          <div className="space-y-4">
               <div className="relative">
                   <Key size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500" />
                   <input 
                       type="text" 
                       value={clientAccessCode}
                       onChange={(e) => setClientAccessCode(e.target.value)}
-                      placeholder="Enter Global Property ID"
-                      className="w-full bg-black border-2 border-white/5 rounded-[2rem] py-6 pl-16 pr-6 text-white text-sm font-bold tracking-widest outline-none focus:border-[#FFBF00]/50 transition-colors shadow-inner"
+                      placeholder="Enter Property ID"
+                      className="w-full bg-black border-2 border-white/5 rounded-[2rem] py-5 pl-16 pr-6 text-white text-sm font-bold tracking-widest outline-none focus:border-[#FFBF00]/50 transition-colors shadow-inner"
                   />
               </div>
-              <button onClick={handleClientAccess} className="w-full bg-[#FFBF00] text-black font-black py-6 rounded-[2rem] uppercase tracking-[0.3em] text-[11px] hover:scale-[1.02] transition-all shadow-[0_10px_40px_rgba(255,191,0,0.2)]">
+              <div className="relative">
+                  <Lock size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input 
+                      type="password" 
+                      value={clientPassword}
+                      onChange={(e) => setClientPassword(e.target.value)}
+                      placeholder="Enter Access Password"
+                      className="w-full bg-black border-2 border-white/5 rounded-[2rem] py-5 pl-16 pr-6 text-white text-sm font-bold tracking-widest outline-none focus:border-[#FFBF00]/50 transition-colors shadow-inner"
+                  />
+              </div>
+              <button onClick={handleClientAccess} className="w-full bg-[#FFBF00] text-black font-black py-5 rounded-[2rem] uppercase tracking-[0.3em] text-[11px] hover:scale-[1.02] transition-all shadow-[0_10px_40px_rgba(255,191,0,0.2)] mt-2">
                   Connect to Asset
               </button>
           </div>
@@ -292,31 +341,47 @@ const App = () => {
             </div>
           </header>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-            <div className="flex flex-col justify-center px-4">
-              <p className="text-gray-700 text-[9px] uppercase font-black tracking-widest mb-2">Portfolio</p>
-              <p className="text-6xl font-thin italic text-white/20 leading-none tracking-tighter">{houses.length.toString().padStart(2, '0')}</p>
-              <p className="text-gray-500 text-[9px] mt-4 font-bold uppercase tracking-widest">Active Assets</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div className="col-span-1 md:col-span-2 relative overflow-hidden bg-[#0c0c0c] rounded-[2.5rem] border border-white/5 p-10 flex flex-col justify-center shadow-2xl">
+              <img src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&q=80&w=800" className="absolute inset-0 w-full h-full object-cover opacity-[0.15]" alt="" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent"></div>
+              <div className="relative z-10">
+                <p className="text-[#FFBF00] text-[10px] uppercase font-black tracking-[0.4em] mb-2 flex items-center gap-2"><TrendingUp size={14}/> Active Portfolio Yield</p>
+                <div className="flex items-end gap-4 mt-4">
+                    <p className="text-8xl font-black italic text-white leading-none tracking-tighter">{houses.length.toString().padStart(2, '0')}</p>
+                    <p className="text-gray-400 text-sm font-bold uppercase tracking-widest pb-2">Properties Secured</p>
+                </div>
+              </div>
             </div>
 
             {houses.map(house => (
-              <motion.div key={house.id} whileHover={{ y: -5 }} onClick={() => { setActiveHouse(house); setCurrentView('details'); }} className="aspect-square bg-[#0c0c0c] border border-white/5 rounded-3xl p-6 flex flex-col justify-center items-center cursor-pointer hover:border-[#FFBF00]/40 transition-all relative group shadow-2xl">
-                <button onClick={(e) => handleDeleteHouse(e, house.id)} className="absolute top-4 right-4 p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all border border-red-500/10"><Trash2 size={14} /></button>
-                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-[#FFBF00] transition-all duration-500"><Store size={32} className="group-hover:text-black transition-colors" /></div>
-                <h2 className="text-xl font-black italic uppercase text-center leading-tight mb-2">{house.name}</h2>
-                <p className="text-[8px] text-gray-600 font-black uppercase tracking-[0.2em] bg-white/5 px-3 py-1 rounded-full">{house.id}</p>
+              <motion.div key={house.id} whileHover={{ y: -5 }} onClick={() => { setActiveHouse(house); setCurrentView('details'); }} className="aspect-square bg-[#0c0c0c] border border-white/5 rounded-3xl p-6 flex flex-col justify-center items-center cursor-pointer hover:border-[#FFBF00]/40 transition-all relative group shadow-2xl overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-t from-[#FFBF00]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <button onClick={(e) => handleDeleteHouse(e, house.id)} className="absolute top-4 right-4 p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all border border-red-500/10 z-20"><Trash2 size={14} /></button>
+                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-[#FFBF00] transition-all duration-500 relative z-10"><Store size={32} className="group-hover:text-black transition-colors" /></div>
+                <h2 className="text-xl font-black italic uppercase text-center leading-tight mb-2 relative z-10">{house.name}</h2>
+                <p className="text-[8px] text-gray-500 font-black uppercase tracking-[0.3em] bg-black/50 px-4 py-1.5 rounded-full border border-white/5 relative z-10 flex items-center gap-1 mb-2"><MapPin size={10}/> {house.id}</p>
+                
+                {/* ADMIN PASSWORD BADGE WITH AUTO-GENERATE BUTTON FOR OLDER ASSETS */}
+                {house.password ? (
+                  <p className="text-[#FFBF00] text-[8px] font-black tracking-widest mt-1 flex items-center gap-1 border border-[#FFBF00]/20 bg-[#FFBF00]/10 px-2 py-1 rounded relative z-10"><Key size={10}/> {house.password}</p>
+                ) : (
+                  <button onClick={(e) => handleGeneratePassword(e, house.id)} className="text-red-400 text-[8px] font-black tracking-widest mt-1 flex items-center gap-1 border border-red-500/20 bg-red-500/10 px-2 py-1 rounded relative z-20 hover:bg-red-500 hover:text-white transition-all cursor-pointer">
+                    <Key size={10}/> SET PASS
+                  </button>
+                )}
               </motion.div>
             ))}
 
             <div onClick={() => setIsAddingHouse(true)} className="aspect-square border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-[#FFBF00]/30 text-gray-600 hover:text-[#FFBF00] transition-all bg-white/[0.01] group">
               <Plus size={32} className="group-hover:scale-110 transition-transform"/>
-              <p className="mt-4 font-black uppercase text-[9px] tracking-widest italic">Add Asset</p>
+              <p className="mt-4 font-black uppercase text-[9px] tracking-widest italic">Deploy Asset</p>
             </div>
           </div>
         </div>
       ) : (
         /* =========================================
-           VIEW 2: UNIT DASHBOARD (Adapts for Master & Client)
+           VIEW 2: UNIT DASHBOARD
            ========================================= */
         <div className="relative z-10 animate-in slide-in-from-right duration-500">
           <div className="flex justify-between items-center mb-12">
@@ -345,9 +410,7 @@ const App = () => {
               <button onClick={() => setIsAdmin(!isAdmin)} className={`px-6 py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest border transition-all shadow-lg ${isAdmin ? 'bg-[#FFBF00] text-black border-transparent' : 'bg-white/5 border-white/10 text-gray-500 hover:text-white'}`}>
                 {isAdmin ? 'EDIT MODE: ON' : 'EDIT MODE: OFF'}
               </button>
-              
               <button onClick={() => fetchUnits(activeHouse.id)} className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white hover:text-[#FFBF00] hover:rotate-180 transition-all duration-700"><RefreshCw size={20} /></button>
-              
               {isAdmin && <button onClick={() => setIsAdding(true)} className="px-8 py-4 bg-[#FFBF00] text-black font-black rounded-2xl text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-[#FFBF00]/20"><Plus size={18} strokeWidth={3} /> Register Unit</button>}
             </div>
           </header>
@@ -356,15 +419,14 @@ const App = () => {
             <div className="bg-[#0c0c0c] border border-white/5 p-10 rounded-[2.5rem] flex items-center justify-between group shadow-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/[0.02] rounded-full blur-3xl"></div>
               <div className="relative z-10">
-                <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest mb-2">Total Units</p>
+                <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2"><Store size={14}/> Total Units</p>
                 <p className="text-7xl font-thin italic text-white leading-none tracking-tighter">{rooms.length.toString().padStart(2, '0')}</p>
               </div>
-              <Store size={60} className="text-white/5 group-hover:text-white/10 transition-colors" />
             </div>
             <div className="bg-[#0c0c0c] border border-white/5 p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
               <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl group-hover:bg-green-500/20 transition-all duration-700"></div>
               <div className="relative z-10">
-                <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-2">Yield (Monthly)</p>
+                <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2"><BarChart3 size={14}/> Yield (Monthly)</p>
                 <p className="text-7xl font-black italic uppercase text-green-500 leading-none tracking-tighter">₹{totalRevenue.toLocaleString()}</p>
               </div>
             </div>
@@ -372,10 +434,11 @@ const App = () => {
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {rooms.map((room) => (
-              <div key={room.id} className={`p-8 rounded-[2rem] border transition-all duration-500 group ${room.isOccupied ? 'bg-[#0c0c0c] border-white/5 hover:border-white/10' : 'bg-[#FFBF00]/5 border-[#FFBF00]/10 hover:border-[#FFBF00]/30'}`}>
+              <div key={room.id} className={`p-8 rounded-[2rem] border transition-all duration-500 group relative overflow-hidden ${room.isOccupied ? 'bg-[#0c0c0c] border-white/5 hover:border-white/10' : 'bg-[#FFBF00]/5 border-[#FFBF00]/10 hover:border-[#FFBF00]/30'}`}>
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#FFBF00]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <div className="flex justify-between items-start mb-8 font-black italic text-2xl">
                   <span>{room.unitNumber}</span>
-                  <span className={`text-[8px] uppercase tracking-widest px-3 py-1.5 rounded-lg border ${room.isOccupied ? 'text-red-500 border-red-500/20 bg-red-500/5' : 'text-green-500 border-green-500/20 bg-green-500/5'}`}>{room.isOccupied ? 'SECURE' : 'VACANT'}</span>
+                  <span className={`text-[8px] uppercase tracking-widest px-3 py-1.5 rounded-lg border shadow-inner ${room.isOccupied ? 'text-red-500 border-red-500/20 bg-red-500/5' : 'text-green-500 border-green-500/20 bg-green-500/5'}`}>{room.isOccupied ? 'SECURE' : 'VACANT'}</span>
                 </div>
                 <div className="text-4xl font-light italic mb-8 text-white/90">₹{room.monthlyRent?.toLocaleString()}</div>
                 <button onClick={() => { setEditData(null); setSelectedRoom(room); }} className="w-full py-4 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#FFBF00] hover:text-black transition-all">
@@ -461,18 +524,27 @@ const App = () => {
           </motion.div>
         )}
 
-        {/* 3. ADD ASSET MODAL (Master Admin Only) */}
+        {/* 3. ADD ASSET MODAL (Master Admin Only) - NOW WITH PASSWORD INPUT */}
         {isAddingHouse && isSuperAdmin && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-[#0c0c0c] border border-green-500/20 w-full max-w-lg rounded-[2.5rem] p-12 relative shadow-2xl">
               <button onClick={() => setIsAddingHouse(false)} className="absolute top-10 right-10 text-gray-600 hover:text-white transition-colors border border-white/10 p-2 rounded-full"><X size={24} /></button>
-              <h2 className="text-4xl font-black italic text-green-500 mb-10 uppercase tracking-tighter italic text-center">Deploy Property</h2>
-              <div className="space-y-8 pt-6 border-t border-white/5">
-                <div><label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Global Tracking ID</label>
-                <input className="bg-black border border-white/10 w-full p-6 rounded-2xl outline-none text-sm font-bold text-white focus:border-green-500/30 transition-all shadow-inner text-center" placeholder="e.g., kphb-101" value={newHouse.id} onChange={e => setNewHouse({ ...newHouse, id: e.target.value.toLowerCase().replace(/\s+/g, '-') })} /></div>
-                <div><label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Asset Branding Name</label>
-                <input className="bg-black border border-white/10 w-full p-6 rounded-2xl outline-none text-2xl font-black italic text-white focus:border-green-500/30 transition-all shadow-inner text-center" placeholder="Emerald Heights" value={newHouse.name} onChange={e => setNewHouse({ ...newHouse, name: e.target.value })} /></div>
-                <button onClick={handleAddNewHouse} className="w-full bg-green-500 text-black font-black py-6 rounded-2xl uppercase tracking-widest text-[12px] hover:scale-105 active:scale-95 transition-all shadow-xl shadow-green-500/10 mt-4">Initialize Asset</button>
+              <h2 className="text-4xl font-black italic text-green-500 mb-8 uppercase tracking-tighter italic text-center">Deploy Property</h2>
+              <div className="space-y-6 pt-6 border-t border-white/5">
+                <div>
+                  <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Global Tracking ID</label>
+                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-sm font-bold text-white focus:border-green-500/30 transition-all shadow-inner text-center" placeholder="e.g., kphb-101" value={newHouse.id} onChange={e => setNewHouse({ ...newHouse, id: e.target.value.toLowerCase().replace(/\s+/g, '-') })} />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Asset Branding Name</label>
+                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-xl font-black italic text-white focus:border-green-500/30 transition-all shadow-inner text-center" placeholder="Emerald Heights" value={newHouse.name} onChange={e => setNewHouse({ ...newHouse, name: e.target.value })} />
+                </div>
+                {/* NEW PASSWORD INPUT */}
+                <div>
+                  <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Client Access Password</label>
+                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-sm font-bold text-[#FFBF00] focus:border-green-500/30 transition-all shadow-inner text-center" placeholder="Leave blank to auto-generate" value={newHouse.password || ''} onChange={e => setNewHouse({ ...newHouse, password: e.target.value })} />
+                </div>
+                <button onClick={handleAddNewHouse} className="w-full bg-green-500 text-black font-black py-6 rounded-2xl uppercase tracking-widest text-[12px] hover:scale-105 active:scale-95 transition-all shadow-xl shadow-green-500/10 mt-6">Initialize Asset</button>
               </div>
             </motion.div>
           </motion.div>
