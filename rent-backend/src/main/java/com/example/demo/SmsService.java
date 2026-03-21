@@ -6,63 +6,92 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @EnableScheduling
 public class SmsService {
 
-    private java.time.LocalDateTime lastReminderSent;
-
     private final RoomRepository repository;
+
+    // In a real SaaS, this would be moved to application.properties or a Vault
     private final String API_KEY = "Wsc9kOKjMUb0fpGBgICFEZL4qiyNX7uRax6ltrmYew1HP3TdnDCa2qDsbjnMUSTweG8pRrH5gtuyiK3Z";
 
     public SmsService(RoomRepository repository) {
         this.repository = repository;
     }
 
-    public java.time.LocalDateTime getLastReminderSent() {
-        return lastReminderSent;
+    // Add this inside SmsService.java
+    public void sendManualReminder(String roomId) throws Exception {
+        // FIX: Parse the String roomId into a Long
+        Long id = Long.parseLong(roomId);
+
+        Room room = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Unit not found"));
+
+        if (Boolean.TRUE.equals(room.getIsOccupied()) && room.getTenantPhone() != null) {
+            String houseName = (room.getHouseName() != null) ? room.getHouseName() : "NoMadNest";
+            String message = houseName + ": Rent for Unit " + room.getUnitNumber() +
+                    " (Rs." + room.getMonthlyRent() + ") is due. Please clear ASAP.";
+
+            sendSms(room.getTenantPhone(), message);
+
+            room.setLastReminderSent(LocalDateTime.now());
+            repository.save(room);
+        } else {
+            throw new Exception("Unit is vacant or has no phone number attached.");
+        }
     }
 
-    public void setLastReminderSent(java.time.LocalDateTime lastReminderSent) {
-        this.lastReminderSent = lastReminderSent;
-    }
-
-    // Inside SmsService.java
-    // @Scheduled(cron = "0 0 9 5 * ?")
+    /**
+     * Runs every day at 3:02 AM to check for due rents
+     */
     @Scheduled(cron = "0 2 3 * * *")
     public void sendAutomaticReminders() {
         List<Room> rooms = repository.findAll();
-        System.out.println("🔍 Checking " + rooms.size() + " rooms for reminders...");
+        System.out.println("🔍 NoMadNest: Checking " + rooms.size() + " total units for rent reminders...");
 
         for (Room room : rooms) {
+            // Only send if occupied, has a phone, and belongs to a house
             if (Boolean.TRUE.equals(room.getIsOccupied()) && room.getTenantPhone() != null) {
                 try {
-                    String message = "LIG-941: Rent for Unit " + room.getUnitNumber() +
+                    // DYNAMIC MESSAGE: Uses the specific House Name (e.g., LIG-941 or NoMadNest
+                    // Banjara)
+                    String houseName = (room.getHouseName() != null) ? room.getHouseName() : "NoMadNest";
+
+                    String message = houseName + ": Rent for Unit " + room.getUnitNumber() +
                             " (Rs." + room.getMonthlyRent() + ") is due. Please clear by 10th.";
 
-                    // CRITICAL: You must call the sendSms method here!
                     sendSms(room.getTenantPhone(), message);
 
-                    room.setLastReminderSent(java.time.LocalDateTime.now());
+                    // Update the last reminder time in the database
+                    room.setLastReminderSent(LocalDateTime.now());
                     repository.save(room);
-                    System.out.println("✅ Success for Unit " + room.getUnitNumber());
+
+                    System.out.println("✅ Reminder sent for " + houseName + " - Unit " + room.getUnitNumber());
                 } catch (Exception e) {
-                    System.out.println("❌ Error sending to " + room.getUnitNumber() + ": " + e.getMessage());
+                    System.err.println("❌ Failed for Unit " + room.getUnitNumber() + ": " + e.getMessage());
                 }
             }
         }
     }
 
     private void sendSms(String phoneNumber, String message) throws Exception {
-        // 1. CLEAN THE NUMBER: Remove '+' and any spaces
+        // 1. CLEAN THE NUMBER: Ensure it's 10 digits without +91 or spaces
         String cleanNumber = phoneNumber.replace("+", "").replace(" ", "").trim();
+        if (cleanNumber.startsWith("91") && cleanNumber.length() > 10) {
+            cleanNumber = cleanNumber.substring(2);
+        }
 
-        // 2. BUILD THE URL
+        // 2. BUILD THE URL FOR FAST2SMS
+        // Using UTF-8 for message encoding
+        String encodedMessage = URLEncoder.encode(message, StandardCharsets.UTF_8.toString());
+
         String urlString = "https://www.fast2sms.com/dev/bulkV2?authorization=" + API_KEY +
-                "&route=q" +
-                "&message=" + URLEncoder.encode(message, "UTF-8") +
+                "&route=q" + // 'q' is for Quick SMS
+                "&message=" + encodedMessage +
                 "&flash=0&numbers=" + cleanNumber;
 
         URL url = new URL(urlString);
@@ -71,14 +100,10 @@ public class SmsService {
 
         int responseCode = conn.getResponseCode();
         if (responseCode == 200) {
-            System.out.println("✅ Quick SMS triggered for " + cleanNumber);
+            System.out.println("📱 SMS successfully queued for " + cleanNumber);
         } else {
-            // This will help us see exactly what Fast2SMS is complaining about
-            System.out.println("❌ Fast2SMS rejected the request. Code: " + responseCode);
-            if (responseCode == 400) {
-                System.out
-                        .println("👉 Hint: Check if the number " + cleanNumber + " is valid for your Fast2SMS route.");
-            }
+            System.out.println("⚠️ Fast2SMS Error. Code: " + responseCode + " for number: " + cleanNumber);
         }
+        conn.disconnect();
     }
 }

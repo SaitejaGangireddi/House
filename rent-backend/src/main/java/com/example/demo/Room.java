@@ -11,26 +11,49 @@ public class Room {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "unit_number", nullable = false)
     private String unitNumber;
+
+    @Column(name = "floor")
     private String floor;
-    private String unitType;
+
+    @Column(name = "monthly_rent")
     private Integer monthlyRent;
 
-    // IMPORTANT: Default to false (Green) for safety
-    @Column(nullable = false)
-    private Boolean isOccupied = false; 
-    
+    @Column(name = "is_occupied")
+    private Boolean isOccupied = false;
+
+    @Column(name = "tenant_name")
     private String tenantName;
+
+    @Column(name = "tenant_phone")
     private String tenantPhone;
 
-    // TRACKING: Stores the last time an automated SMS was fired
+    @Column(name = "last_reminder_sent")
     private LocalDateTime lastReminderSent;
 
-    public Room() {
-        this.isOccupied = false;
+    @Column(name = "owner_email", nullable = false)
+    private String ownerEmail;
+
+    @Column(name = "house_id", nullable = false)
+    private String houseId;
+
+    @Column(name = "house_name")
+    private String houseName;
+
+    // --- REMINDER METHODS ---
+    public LocalDateTime getLastReminderSent() {
+        return lastReminderSent;
     }
 
-    // Getters and Setters
+    public void setLastReminderSent(LocalDateTime lastReminderSent) {
+        this.lastReminderSent = lastReminderSent;
+    }
+
+    // --- CONSTRUCTORS ---
+    public Room() {}
+
+    // --- GETTERS & SETTERS (Essential for JSON Mapping) ---
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -39,9 +62,6 @@ public class Room {
 
     public String getFloor() { return floor; }
     public void setFloor(String floor) { this.floor = floor; }
-
-    public String getUnitType() { return unitType; }
-    public void setUnitType(String unitType) { this.unitType = unitType; }
 
     public Integer getMonthlyRent() { return monthlyRent; }
     public void setMonthlyRent(Integer monthlyRent) { this.monthlyRent = monthlyRent; }
@@ -55,8 +75,12 @@ public class Room {
     public String getTenantPhone() { return tenantPhone; }
     public void setTenantPhone(String tenantPhone) { this.tenantPhone = tenantPhone; }
 
-    public LocalDateTime getLastReminderSent() { return lastReminderSent; }
-    public void setLastReminderSent(LocalDateTime lastReminderSent) { 
-        this.lastReminderSent = lastReminderSent; 
-    }
+    public String getOwnerEmail() { return ownerEmail; }
+    public void setOwnerEmail(String ownerEmail) { this.ownerEmail = ownerEmail; }
+
+    public String getHouseId() { return houseId; }
+    public void setHouseId(String houseId) { this.houseId = houseId; }
+
+    public String getHouseName() { return houseName; }
+    public void setHouseName(String houseName) { this.houseName = houseName; }
 }

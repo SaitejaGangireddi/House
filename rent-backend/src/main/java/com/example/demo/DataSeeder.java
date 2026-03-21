@@ -2,7 +2,6 @@ package com.example.demo;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
-import java.util.Optional;
 
 @Component
 public class DataSeeder implements CommandLineRunner {
@@ -13,35 +12,11 @@ public class DataSeeder implements CommandLineRunner {
         this.repository = repository;
     }
 
-   @Override
-public void run(String... args) throws Exception {
-    // Remove the "if repository.count() == 0" check so this runs every time you deploy
-    
-    // Updated values
-    saveOrUpdateRoom("Shutter", "GROUND", "RESIDENTIAL", 6000, true, "Lakshmana rao", "919866693940");
-     saveOrUpdateRoom("001", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-      saveOrUpdateRoom("002", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-    saveOrUpdateRoom("101", "FIRST", "RESIDENTIAL", 5000,  true, "Geetha", "919550623773");
-    saveOrUpdateRoom("102", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-    saveOrUpdateRoom("201", "FIRST", "RESIDENTIAL", 5000, false, null, null);
-    
-    System.out.println("✅ Database updated with new rental values.");
-}
-
-private void saveOrUpdateRoom(String num, String floor, String type, int rent, boolean occupied, String name, String phone) {
-    // 1. Try to find the room by its Unit Number
-    Room room = repository.findByUnitNumber(num).orElse(new Room());
-    
-    // 2. Set all the values (this will overwrite the old rent with the new one)
-    room.setUnitNumber(num);
-    room.setFloor(floor);
-    room.setUnitType(type);
-    room.setMonthlyRent(rent); 
-    room.setIsOccupied(occupied);
-    room.setTenantName(name);
-    room.setTenantPhone(phone);
-    
-    // 3. Save it - Spring JPA is smart enough to UPDATE if it exists, or INSERT if it's new
-    repository.save(room);
-}
+    @Override
+    public void run(String... args) throws Exception {
+        // We no longer hardcode rooms here.
+        // The database will now only contain what the Owner adds via the Dashboard.
+        System.out.println("🚀 NoMadNest Backend is Ready.");
+        System.out.println("ℹ️ Total Rooms in Database: " + repository.count());
+    }
 }
