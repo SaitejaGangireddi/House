@@ -137,16 +137,19 @@ const App = () => {
   const fetchHouses = () => {
     setLoading(true); 
     fetch(`${API_BASE_URL}/api/houses/owner/${MASTER_DB_OWNER}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.length > 0) {
-          setHouses(data);
-          setLoading(false);
-        } else {
-          setTimeout(fetchHouses, 3000);
-        }
+      .then(res => {
+        if (!res.ok) throw new Error("Server not ready");
+        return res.json();
       })
-      .catch(() => setTimeout(fetchHouses, 3000));
+      .then(data => {
+        // FIX: Accept empty arrays! Stop loading so you can add the first house.
+        setHouses(Array.isArray(data) ? data : []);
+        setLoading(false); 
+      })
+      .catch(() => {
+        // Only retry if the connection actually fails (Render waking up)
+        setTimeout(fetchHouses, 3000);
+      });
   };
   
   const fetchUnits = (houseId) => {
