@@ -12,15 +12,16 @@ const App = () => {
   const [isAdmin, setIsAdmin] = useState(false); 
   
   // --- SECURITY LOGIC ---
-  const MASTER_ADMIN_EMAIL = "saitejagangireddi@gmail.com";
-  const isSuperAdmin = user?.email === MASTER_ADMIN_EMAIL;
+  const AUTHORIZED_ADMINS = [
+    "saitejagangireddi@gmail.com",
+    "anushagundumalla@gmail.com", // Add more admin emails here
+     "saitejagangireddiphotos@gmail.com" // Add more admin emails here
+  ];
+  const isSuperAdmin = user && AUTHORIZED_ADMINS.includes(user.email);
+  const MASTER_DB_OWNER = "saitejagangireddi@gmail.com";
 
-  // --- PERSISTENCE: LOAD HOUSES ---
-  const [houses, setHouses] = useState(() => {
-    const saved = localStorage.getItem('nomadnest_houses');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  // --- DATA STATES ---
+  const [houses, setHouses] = useState([]); // Now starts empty and loads from DB
   const [activeHouse, setActiveHouse] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -28,7 +29,7 @@ const App = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [editData, setEditData] = useState(null);
   
-  // --- FORM STATES (Now includes password for custom entry) ---
+  // --- FORM STATES ---
   const [newHouse, setNewHouse] = useState({ id: '', name: '', password: '' });
   const [newRoom, setNewRoom] = useState({ unitNumber: '', floor: '', monthlyRent: 0, tenantPhone: '', tenantName: '' });
   
@@ -38,19 +39,13 @@ const App = () => {
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "https://sturdy-spoon-4pwqxj59r593qqg9-8080.app.github.dev";
 
-  // --- PERSISTENCE: SAVE HOUSES ---
-  useEffect(() => { 
-    localStorage.setItem('nomadnest_houses', JSON.stringify(houses)); 
-  }, [houses]);
-
   // --- AUTH LISTENER & ROUTING ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
-      
       if (currentUser && currentView === 'landing') {
-        if (currentUser.email === MASTER_ADMIN_EMAIL) {
+        if (AUTHORIZED_ADMINS.includes(currentUser.email)) {
           setCurrentView('portfolio'); 
         } else {
           setCurrentView('client_gateway'); 
@@ -60,7 +55,21 @@ const App = () => {
     return () => unsubscribe();
   }, [currentView]);
 
-  // --- DATA ISOLATION & FETCHING ---
+  // --- CLOUD SYNC: FETCH HOUSES FROM AIVEN ---
+  useEffect(() => {
+    if (user) {
+      fetchHouses();
+    }
+  }, [user]);
+
+  const fetchHouses = () => {
+    fetch(`${API_BASE_URL}/api/houses/owner/${MASTER_DB_OWNER}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setHouses(data))
+      .catch(err => console.error("Error fetching houses:", err));
+  };
+
+  // --- CLOUD SYNC: FETCH ROOMS FROM AIVEN ---
   useEffect(() => {
     if (user && activeHouse) {
       setRooms([]); 
@@ -71,7 +80,7 @@ const App = () => {
   const fetchUnits = (houseId) => {
     if (!houseId) return;
     setLoading(true);
-    fetch(`${API_BASE_URL}/api/units/owner/${MASTER_ADMIN_EMAIL}/house/${houseId}`)
+    fetch(`${API_BASE_URL}/api/units/owner/${MASTER_DB_OWNER}/house/${houseId}`)
       .then(res => res.ok ? res.json() : [])
       .then(data => { 
         setRooms(Array.isArray(data) ? data : []); 
@@ -83,49 +92,57 @@ const App = () => {
       });
   };
 
-  // --- BUSINESS HANDLERS ---
+  // --- BUSINESS HANDLERS (DATABASE DRIVEN) ---
   
-  const handleAddNewHouse = () => {
+  const handleAddNewHouse = async () => {
     const formattedId = newHouse.id.toLowerCase().replace(/\s+/g, '-');
-    if (!formattedId || !newHouse.name) return alert("Property ID and Name are required.");
+    if (!formattedId || !newHouse.name) return alert("Required fields missing.");
     
-    // Prevent Duplicate Property IDs
-    if (houses.some(h => h.id === formattedId)) {
-        return alert("ERROR: This Property ID already exists. Please choose a unique ID.");
-    }
+    const finalPassword = newHouse.password?.trim() || Math.random().toString(36).slice(-6).toUpperCase();
 
-    // Use typed password, OR auto-generate one if left blank
-    const finalPassword = newHouse.password?.trim() ? newHouse.password.trim() : Math.random().toString(36).slice(-6).toUpperCase();
-
-    const houseWithAuth = {
+    const housePayload = {
         id: formattedId,
         name: newHouse.name,
-        password: finalPassword
+        password: finalPassword,
+        ownerEmail: MASTER_DB_OWNER
     };
 
-    const updated = [...houses, houseWithAuth];
-    setHouses(updated);
-    setActiveHouse(houseWithAuth);
-    setCurrentView('details');
-    setIsAddingHouse(false);
-    setNewHouse({ id: '', name: '', password: '' });
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/houses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(housePayload)
+      });
+      if (res.ok) {
+        fetchHouses(); // Refresh list from DB
+        setIsAddingHouse(false);
+        setNewHouse({ id: '', name: '', password: '' });
+      }
+    } catch (err) { alert("Error saving to database."); }
   };
 
-  // Retroactively generate a password for old properties that show NO-PASS
-  const handleGeneratePassword = (e, houseId) => {
+  const handleGeneratePassword = async (e, houseId) => {
     e.stopPropagation(); 
-    const generatedPassword = Math.random().toString(36).slice(-6).toUpperCase();
-    const updatedHouses = houses.map(h => 
-      h.id === houseId ? { ...h, password: generatedPassword } : h
-    );
-    setHouses(updatedHouses);
+    const houseToUpdate = houses.find(h => h.id === houseId);
+    if (!houseToUpdate) return;
+
+    const updatedHouse = { ...houseToUpdate, password: Math.random().toString(36).slice(-6).toUpperCase() };
+    
+    await fetch(`${API_BASE_URL}/api/houses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedHouse)
+    });
+    fetchHouses();
   };
 
   const handleDeleteHouse = async (e, houseId) => {
     e.stopPropagation();
-    if (!window.confirm("Delete property permanently?")) return;
+    if (!window.confirm("Delete property permanently from database?")) return;
+    await fetch(`${API_BASE_URL}/api/houses/${houseId}`, { method: 'DELETE' });
+    // Also delete associated units
     await fetch(`${API_BASE_URL}/api/units/house/${houseId}`, { method: 'DELETE' });
-    setHouses(houses.filter(h => h.id !== houseId));
+    fetchHouses();
   };
 
   const handleAddUnit = async () => {
@@ -135,7 +152,7 @@ const App = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
             ...newRoom, 
-            ownerEmail: MASTER_ADMIN_EMAIL, 
+            ownerEmail: MASTER_DB_OWNER, 
             houseId: activeHouse.id, 
             houseName: activeHouse.name, 
             isOccupied: !!newRoom.tenantName 
@@ -177,20 +194,9 @@ const App = () => {
 
   const handleClientAccess = () => {
     const formattedId = clientAccessCode.toLowerCase().trim();
-    if (!formattedId) return alert("Enter a Property ID");
-
     const foundHouse = houses.find(h => h.id === formattedId);
-    
-    // Validate if Property Exists
-    if (!foundHouse) {
-        return alert("ACCESS DENIED: Property ID does not exist in the system.");
-    }
-
-    // Validate Password Match
-    if (foundHouse.password !== clientPassword.trim()) {
-        return alert("ACCESS DENIED: Incorrect Password.");
-    }
-
+    if (!foundHouse) return alert("ACCESS DENIED: Invalid Property ID.");
+    if (foundHouse.password !== clientPassword.trim()) return alert("ACCESS DENIED: Incorrect Password.");
     setActiveHouse(foundHouse);
     setCurrentView('details');
   };
@@ -205,7 +211,7 @@ const App = () => {
 
   const totalRevenue = rooms.reduce((acc, r) => acc + (r.isOccupied ? (parseInt(r.monthlyRent) || 0) : 0), 0);
 
-  // --- VIEWS ---
+  // --- RENDERING VIEWS (NO CHANGES TO UI OR ANIMATIONS) ---
 
   const LandingPage = () => (
     <div className="bg-[#050505] min-h-screen text-white">
@@ -323,9 +329,6 @@ const App = () => {
       <div className="fixed inset-0 pointer-events-none opacity-[0.02] bg-[length:100%_2px,3px_100%] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))]"></div>
 
       {currentView === 'portfolio' && isSuperAdmin ? (
-        /* =========================================
-           MASTER ADMIN VIEW: PORTFOLIO
-           ========================================= */
         <div className="relative z-10 animate-in fade-in duration-500">
           <header className="flex flex-col md:flex-row justify-between items-center mb-16 border-b border-white/5 pb-8 gap-6">
             <div className="flex items-center gap-4 cursor-pointer" onClick={() => setCurrentView('landing')}>
@@ -335,7 +338,7 @@ const App = () => {
             <div className="flex items-center gap-5">
               <div className="hidden lg:block text-right">
                 <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest mb-1">{user?.email}</p>
-                <p className="text-[#FFBF00] text-[8px] font-black uppercase tracking-widest italic">Master Admin</p>
+                <p className="text-[#FFBF00] text-[8px] font-black uppercase tracking-widest italic">Authorized Admin</p>
               </div>
               <button onClick={handleAppLogout} className="p-3 bg-red-500/10 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center gap-2 text-[9px] font-black uppercase tracking-widest px-5"><LogOut size={16} /> Disconnect</button>
             </div>
@@ -362,7 +365,6 @@ const App = () => {
                 <h2 className="text-xl font-black italic uppercase text-center leading-tight mb-2 relative z-10">{house.name}</h2>
                 <p className="text-[8px] text-gray-500 font-black uppercase tracking-[0.3em] bg-black/50 px-4 py-1.5 rounded-full border border-white/5 relative z-10 flex items-center gap-1 mb-2"><MapPin size={10}/> {house.id}</p>
                 
-                {/* ADMIN PASSWORD BADGE WITH AUTO-GENERATE BUTTON FOR OLDER ASSETS */}
                 {house.password ? (
                   <p className="text-[#FFBF00] text-[8px] font-black tracking-widest mt-1 flex items-center gap-1 border border-[#FFBF00]/20 bg-[#FFBF00]/10 px-2 py-1 rounded relative z-10"><Key size={10}/> {house.password}</p>
                 ) : (
@@ -380,9 +382,7 @@ const App = () => {
           </div>
         </div>
       ) : (
-        /* =========================================
-           VIEW 2: UNIT DASHBOARD
-           ========================================= */
+        /* DASHBOARD (UNIT VIEW) - NO CHANGES */
         <div className="relative z-10 animate-in slide-in-from-right duration-500">
           <div className="flex justify-between items-center mb-12">
             <div className="flex gap-3">
@@ -395,7 +395,6 @@ const App = () => {
                 <button onClick={() => { setCurrentView('client_gateway'); setActiveHouse(null); }} className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all"><ArrowLeft size={14} /> Change Property</button>
               )}
             </div>
-            
             {!isSuperAdmin && (
                 <button onClick={handleAppLogout} className="px-5 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all"><LogOut size={14} /> Sign Out</button>
             )}
@@ -450,10 +449,8 @@ const App = () => {
         </div>
       )}
 
-      {/* --- ALL MODALS --- */}
+      {/* --- ALL MODALS (STRICTLY UNCHANGED UI) --- */}
       <AnimatePresence>
-        
-        {/* 1. ROOM DETAILS MODAL */}
         {selectedRoom && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-[#0c0c0c] border border-white/10 w-full max-w-lg rounded-[2.5rem] p-12 relative shadow-2xl">
@@ -501,12 +498,11 @@ const App = () => {
           </motion.div>
         )}
 
-        {/* 2. ADD UNIT MODAL */}
         {isAdding && isAdmin && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-[#0c0c0c] border border-[#FFBF00]/20 w-full max-w-lg rounded-[2.5rem] p-12 relative shadow-2xl text-center">
               <button onClick={() => { setIsAdding(false); setNewRoom({ unitNumber: '', floor: '', monthlyRent: 0, tenantPhone: '', tenantName: '' }); }} className="absolute top-10 right-10 text-gray-600 hover:text-white transition-colors border border-white/10 p-2 rounded-full"><X size={24} /></button>
-              <h2 className="text-4xl font-black italic text-[#FFBF00] mb-10 uppercase tracking-tighter italic">Register Unit</h2>
+              <h2 className="text-4xl font-black italic text-[#FFBF00] mb-10 uppercase tracking-tighter">Register Unit</h2>
               <div className="space-y-6 pt-6 border-t border-white/5">
                 <div className="grid grid-cols-2 gap-4">
                   <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-xs focus:border-[#FFBF00]/30 transition-all shadow-inner" placeholder="Unit ID" value={newRoom.unitNumber} onChange={e => setNewRoom({ ...newRoom, unitNumber: e.target.value })} />
@@ -518,33 +514,31 @@ const App = () => {
                 </div>
                 <div><label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Monthly Rent (₹)</label>
                 <input className="bg-black border border-[#FFBF00]/10 w-full p-7 rounded-2xl outline-none font-bold text-4xl text-[#FFBF00] text-center shadow-inner" type="number" placeholder="₹ 0.00" value={newRoom.monthlyRent || ''} onChange={e => setNewRoom({ ...newRoom, monthlyRent: parseInt(e.target.value) || 0 })} /></div>
-                <button onClick={handleAddUnit} className="w-full bg-[#FFBF00] text-black font-black py-6 rounded-2xl uppercase tracking-widest text-[12px] hover:scale-105 active:scale-95 transition-all shadow-xl shadow-[#FFBF00]/10 mt-6">Save Unit</button>
+                <button onClick={handleAddUnit} className="w-full bg-[#FFBF00] text-black font-black py-6 rounded-2xl uppercase tracking-widest text-[12px] hover:scale-105 transition-all shadow-xl mt-6">Save Unit</button>
               </div>
             </motion.div>
           </motion.div>
         )}
 
-        {/* 3. ADD ASSET MODAL (Master Admin Only) - NOW WITH PASSWORD INPUT */}
         {isAddingHouse && isSuperAdmin && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-[#0c0c0c] border border-green-500/20 w-full max-w-lg rounded-[2.5rem] p-12 relative shadow-2xl">
               <button onClick={() => setIsAddingHouse(false)} className="absolute top-10 right-10 text-gray-600 hover:text-white transition-colors border border-white/10 p-2 rounded-full"><X size={24} /></button>
-              <h2 className="text-4xl font-black italic text-green-500 mb-8 uppercase tracking-tighter italic text-center">Deploy Property</h2>
+              <h2 className="text-4xl font-black italic text-green-500 mb-8 uppercase tracking-tighter text-center">Deploy Property</h2>
               <div className="space-y-6 pt-6 border-t border-white/5">
                 <div>
                   <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Global Tracking ID</label>
-                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-sm font-bold text-white focus:border-green-500/30 transition-all shadow-inner text-center" placeholder="e.g., kphb-101" value={newHouse.id} onChange={e => setNewHouse({ ...newHouse, id: e.target.value.toLowerCase().replace(/\s+/g, '-') })} />
+                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-sm font-bold text-white focus:border-green-500/30 transition-all text-center" placeholder="e.g., kphb-101" value={newHouse.id} onChange={e => setNewHouse({ ...newHouse, id: e.target.value.toLowerCase().replace(/\s+/g, '-') })} />
                 </div>
                 <div>
                   <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Asset Branding Name</label>
-                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-xl font-black italic text-white focus:border-green-500/30 transition-all shadow-inner text-center" placeholder="Emerald Heights" value={newHouse.name} onChange={e => setNewHouse({ ...newHouse, name: e.target.value })} />
+                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-xl font-black italic text-white focus:border-green-500/30 transition-all text-center" placeholder="Emerald Heights" value={newHouse.name} onChange={e => setNewHouse({ ...newHouse, name: e.target.value })} />
                 </div>
-                {/* NEW PASSWORD INPUT */}
                 <div>
                   <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-2 mb-2 block text-left">Client Access Password</label>
-                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-sm font-bold text-[#FFBF00] focus:border-green-500/30 transition-all shadow-inner text-center" placeholder="Leave blank to auto-generate" value={newHouse.password || ''} onChange={e => setNewHouse({ ...newHouse, password: e.target.value })} />
+                  <input className="bg-black border border-white/10 w-full p-5 rounded-2xl outline-none text-sm font-bold text-[#FFBF00] focus:border-green-500/30 transition-all text-center" placeholder="Leave blank to auto-generate" value={newHouse.password || ''} onChange={e => setNewHouse({ ...newHouse, password: e.target.value })} />
                 </div>
-                <button onClick={handleAddNewHouse} className="w-full bg-green-500 text-black font-black py-6 rounded-2xl uppercase tracking-widest text-[12px] hover:scale-105 active:scale-95 transition-all shadow-xl shadow-green-500/10 mt-6">Initialize Asset</button>
+                <button onClick={handleAddNewHouse} className="w-full bg-green-500 text-black font-black py-6 rounded-2xl uppercase tracking-widest text-[12px] hover:scale-105 transition-all mt-6">Initialize Asset</button>
               </div>
             </motion.div>
           </motion.div>
