@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCzwYMtakvoaSkrpdZsqKFCEHKqaoAlkQo",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "nomadnest-saas.firebaseapp.com",
   projectId: "nomadnest-saas",
   storageBucket: "nomadnest-saas.firebasestorage.app",
